@@ -46,13 +46,6 @@ export default function MapView() {
 
   const [isPinMode, setIsPinMode] = useState(false);
 
-  /*
-   * Listen for clicks directly on the Leaflet map.
-   *
-   * When pin mode is active:
-   * - Clicking the map replaces the existing pin.
-   * - Pin mode immediately turns off.
-   */
   useEffect(() => {
     if (!map) {
       return;
@@ -68,13 +61,11 @@ export default function MapView() {
         event.latlng.lng,
       ];
 
-      // Replace any existing pin.
       setSelectedPlace({
         name: "Dropped pin",
         position,
       });
 
-      // One click = one pin placement.
       setIsPinMode(false);
     }
 
@@ -106,13 +97,11 @@ export default function MapView() {
       Number.parseFloat(place.lon),
     ];
 
-    // Search replaces any existing pin.
     setSelectedPlace({
       name: place.display_name,
       position,
     });
 
-    // Search automatically exits manual pin mode.
     setIsPinMode(false);
 
     map?.flyTo(position, PLACE_ZOOM, {
@@ -146,12 +135,14 @@ export default function MapView() {
       </MapContainer>
 
       <div className="pointer-events-none absolute inset-0 z-[1000]">
-        <div className="flex justify-center px-4 pt-6">
+        {/* Search */}
+        <div className="flex justify-center px-4 pt-4">
           <LocationSearch onSelect={handleSelect} />
         </div>
 
+        {/* Map Controls */}
         {map ? (
-          <div className="pointer-events-auto absolute right-4 bottom-8">
+          <div className="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2">
             <ZoomControls
               map={map}
               isPinMode={isPinMode}

@@ -2,7 +2,6 @@
 
 import { Loader2, MapPin, Search, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { GeocodeResult } from "@/lib/geocode";
@@ -15,6 +14,7 @@ type LocationSearchProps = {
 export function LocationSearch({ onSelect }: LocationSearchProps) {
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeocodeResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -33,6 +33,7 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
     }
 
     const controller = new AbortController();
+
     const timeout = window.setTimeout(async () => {
       setLoading(true);
       setError(null);
@@ -40,7 +41,9 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
       try {
         const response = await fetch(
           `/api/geocode?q=${encodeURIComponent(trimmed)}`,
-          { signal: controller.signal },
+          {
+            signal: controller.signal,
+          },
         );
 
         if (!response.ok) {
@@ -48,13 +51,18 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
         }
 
         const data = (await response.json()) as GeocodeResult[];
+
         setResults(data);
         setOpen(true);
         setActiveIndex(-1);
       } catch (caught) {
-        if (caught instanceof DOMException && caught.name === "AbortError") {
+        if (
+          caught instanceof DOMException &&
+          caught.name === "AbortError"
+        ) {
           return;
         }
+
         setError("Could not find locations. Try again.");
         setResults([]);
         setOpen(true);
@@ -86,9 +94,13 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
   }
 
   return (
-    <div className="pointer-events-auto relative w-full max-w-xl">
-      <div className="flex items-center gap-2 rounded-full border border-black/5 bg-white px-4 py-1.5 shadow-lg">
-        <Search className="size-5 shrink-0 text-neutral-500" aria-hidden />
+    <div className="pointer-events-auto relative w-full max-w-md">
+      <div className="flex h-7 items-center gap-1.5 rounded-full border border-black/5 bg-white px-2.5 shadow-lg">
+        <Search
+          className="size-3.5 shrink-0 text-neutral-500"
+          aria-hidden
+        />
+
         <Input
           ref={inputRef}
           value={query}
@@ -104,6 +116,7 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
           onKeyDown={(event) => {
             if (event.key === "ArrowDown") {
               event.preventDefault();
+
               setActiveIndex((index) =>
                 Math.min(index + 1, results.length - 1),
               );
@@ -111,12 +124,18 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
 
             if (event.key === "ArrowUp") {
               event.preventDefault();
-              setActiveIndex((index) => Math.max(index - 1, 0));
+
+              setActiveIndex((index) =>
+                Math.max(index - 1, 0),
+              );
             }
 
             if (event.key === "Enter") {
               const place =
-                activeIndex >= 0 ? results[activeIndex] : results[0];
+                activeIndex >= 0
+                  ? results[activeIndex]
+                  : results[0];
+
               if (place) {
                 event.preventDefault();
                 selectPlace(place);
@@ -133,23 +152,24 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
           aria-autocomplete="list"
           autoComplete="off"
           placeholder="Search a location"
-          className="h-11 border-0 bg-transparent px-0 text-base shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-base"
+          className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-xs"
         />
+
         {loading ? (
           <Loader2
-            className="size-5 shrink-0 animate-spin text-neutral-400"
+            className="size-3.5 shrink-0 animate-spin text-neutral-400"
             aria-label="Searching"
           />
         ) : query ? (
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="icon-xs"
             aria-label="Clear search"
-            className="rounded-full text-neutral-500 hover:bg-neutral-100"
+            className="size-6 rounded-full text-neutral-500 hover:bg-neutral-100"
             onClick={clearQuery}
           >
-            <X />
+            <X className="size-3.5" />
           </Button>
         ) : null}
       </div>
@@ -158,23 +178,30 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
         <ul
           id={listId}
           role="listbox"
-          className="absolute inset-x-0 top-[calc(100%+0.5rem)] overflow-hidden rounded-2xl border border-black/5 bg-white py-1 shadow-lg"
+          className="absolute inset-x-0 top-[calc(100%+0.5rem)] overflow-hidden rounded-xl border border-black/5 bg-white py-1 shadow-lg"
         >
           {error ? (
-            <li className="px-4 py-3 text-sm text-neutral-500">{error}</li>
+            <li className="px-3 py-2.5 text-sm text-neutral-500">
+              {error}
+            </li>
           ) : (
             results.map((place, index) => (
-              <li key={place.place_id} role="option" aria-selected={index === activeIndex}>
+              <li
+                key={place.place_id}
+                role="option"
+                aria-selected={index === activeIndex}
+              >
                 <button
                   type="button"
                   className={cn(
-                    "flex w-full items-start gap-3 px-4 py-2.5 text-left text-sm text-neutral-800 transition-colors hover:bg-neutral-50",
+                    "flex w-full items-start gap-2.5 px-3 py-2 text-left text-sm text-neutral-800 transition-colors hover:bg-neutral-50",
                     index === activeIndex && "bg-neutral-100",
                   )}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => selectPlace(place)}
                 >
                   <MapPin className="mt-0.5 size-4 shrink-0 text-neutral-500" />
+
                   <span>{place.display_name}</span>
                 </button>
               </li>
