@@ -2,8 +2,13 @@
 
 import type { Map as LeafletMap } from "leaflet";
 import L from "leaflet";
-import { useMemo, useState } from "react";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import { useEffect, useMemo, useState } from "react";
+import {
+  MapContainer,
+  Marker,
+  Popup,
+  TileLayer,
+} from "react-leaflet";
 
 import type { GeocodeResult } from "@/lib/geocode";
 import { LocationSearch } from "@/components/location-search";
@@ -16,22 +21,69 @@ const DEFAULT_ZOOM = 3;
 const PLACE_ZOOM = 16;
 
 const markerIcon = L.icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  iconUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   iconRetinaUrl:
     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  shadowUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
 });
 
+type SelectedPlace = {
+  name: string;
+  position: [number, number];
+};
+
 export default function MapView() {
   const [map, setMap] = useState<LeafletMap | null>(null);
-  const [selectedPlace, setSelectedPlace] = useState<{
-    name: string;
-    position: [number, number];
-  } | null>(null);
+
+  const [selectedPlace, setSelectedPlace] =
+    useState<SelectedPlace | null>(null);
+
+  const [isPinMode, setIsPinMode] = useState(false);
+
+  /*
+   * Listen for clicks directly on the Leaflet map.
+   *
+   * When pin mode is active:
+   * - Clicking the map replaces the existing pin.
+   * - Pin mode immediately turns off.
+   */
+  useEffect(() => {
+    if (!map) {
+      return;
+    }
+
+    function handleMapClick(event: L.LeafletMouseEvent) {
+      if (!isPinMode) {
+        return;
+      }
+
+      const position: [number, number] = [
+        event.latlng.lat,
+        event.latlng.lng,
+      ];
+
+      // Replace any existing pin.
+      setSelectedPlace({
+        name: "Dropped pin",
+        position,
+      });
+
+      // One click = one pin placement.
+      setIsPinMode(false);
+    }
+
+    map.on("click", handleMapClick);
+
+    return () => {
+      map.off("click", handleMapClick);
+    };
+  }, [map, isPinMode]);
 
   const marker = useMemo(() => {
     if (!selectedPlace) {
@@ -39,7 +91,10 @@ export default function MapView() {
     }
 
     return (
-      <Marker position={selectedPlace.position} icon={markerIcon}>
+      <Marker
+        position={selectedPlace.position}
+        icon={markerIcon}
+      >
         <Popup>{selectedPlace.name}</Popup>
       </Marker>
     );
@@ -51,12 +106,22 @@ export default function MapView() {
       Number.parseFloat(place.lon),
     ];
 
+    // Search replaces any existing pin.
     setSelectedPlace({
       name: place.display_name,
       position,
     });
 
-    map?.flyTo(position, PLACE_ZOOM, { duration: 1.1 });
+    // Search automatically exits manual pin mode.
+    setIsPinMode(false);
+
+    map?.flyTo(position, PLACE_ZOOM, {
+      duration: 1.1,
+    });
+  }
+
+  function handlePinModeChange(active: boolean) {
+    setIsPinMode(active);
   }
 
   return (
@@ -65,13 +130,18 @@ export default function MapView() {
         center={DEFAULT_CENTER}
         zoom={DEFAULT_ZOOM}
         zoomControl={false}
-        className="h-full w-full"
+        className={
+          isPinMode
+            ? "h-full w-full cursor-crosshair"
+            : "h-full w-full"
+        }
         ref={setMap}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
         {marker}
       </MapContainer>
 
@@ -81,8 +151,12 @@ export default function MapView() {
         </div>
 
         {map ? (
-          <div className="absolute right-4 bottom-8">
-            <ZoomControls map={map} />
+          <div className="pointer-events-auto absolute right-4 bottom-8">
+            <ZoomControls
+              map={map}
+              isPinMode={isPinMode}
+              onPinModeChange={handlePinModeChange}
+            />
           </div>
         ) : null}
       </div>
