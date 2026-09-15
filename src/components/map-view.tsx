@@ -11,6 +11,7 @@ import {
 } from "react-leaflet";
 
 import type { GeocodeResult } from "@/lib/geocode";
+import { AiChat } from "@/components/ai-chat";
 import { LocationSearch } from "@/components/location-search";
 import { ZoomControls } from "@/components/zoom-controls";
 
@@ -46,13 +47,15 @@ export default function MapView() {
 
   const [isPinMode, setIsPinMode] = useState(false);
 
+  const [isAgentMode, setIsAgentMode] = useState(false);
+
   useEffect(() => {
     if (!map) {
       return;
     }
 
     function handleMapClick(event: L.LeafletMouseEvent) {
-      if (!isPinMode) {
+      if (!isPinMode || isAgentMode) {
         return;
       }
 
@@ -74,7 +77,21 @@ export default function MapView() {
     return () => {
       map.off("click", handleMapClick);
     };
-  }, [map, isPinMode]);
+  }, [map, isPinMode, isAgentMode]);
+
+  useEffect(() => {
+    if (!map) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      map.invalidateSize();
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [map, isAgentMode]);
 
   const marker = useMemo(() => {
     if (!selectedPlace) {
@@ -113,43 +130,62 @@ export default function MapView() {
     setIsPinMode(active);
   }
 
+  function handleAgentModeChange(active: boolean) {
+    setIsAgentMode(active);
+
+    if (active) {
+      setIsPinMode(false);
+    }
+  }
+
   return (
-    <div className="relative h-dvh w-full">
-      <MapContainer
-        center={DEFAULT_CENTER}
-        zoom={DEFAULT_ZOOM}
-        zoomControl={false}
-        className={
-          isPinMode
-            ? "h-full w-full cursor-crosshair"
-            : "h-full w-full"
-        }
-        ref={setMap}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+    <div className="flex h-dvh w-full overflow-hidden">
+      {/* AI Agent Panel */}
+      {isAgentMode ? <AiChat /> : null}
 
-        {marker}
-      </MapContainer>
+      {/* Map */}
+      <div className="relative h-full min-w-0 flex-1">
+        <MapContainer
+          center={DEFAULT_CENTER}
+          zoom={DEFAULT_ZOOM}
+          zoomControl={false}
+          className={
+            isPinMode
+              ? "h-full w-full cursor-crosshair"
+              : "h-full w-full"
+          }
+          ref={setMap}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
 
-      <div className="pointer-events-none absolute inset-0 z-[1000]">
-        {/* Search */}
-        <div className="flex justify-center px-4 pt-4">
-          <LocationSearch onSelect={handleSelect} />
+          {marker}
+        </MapContainer>
+
+        {/* Map UI */}
+        <div className="pointer-events-none absolute inset-0 z-[1000]">
+          {/* Location Search */}
+          {!isAgentMode ? (
+            <div className="flex justify-center px-4 pt-4">
+              <LocationSearch onSelect={handleSelect} />
+            </div>
+          ) : null}
+
+          {/* Map Controls */}
+          {map ? (
+            <div className="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2">
+              <ZoomControls
+                map={map}
+                isPinMode={isPinMode}
+                onPinModeChange={handlePinModeChange}
+                isAgentMode={isAgentMode}
+                onAgentModeChange={handleAgentModeChange}
+              />
+            </div>
+          ) : null}
         </div>
-
-        {/* Map Controls */}
-        {map ? (
-          <div className="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2">
-            <ZoomControls
-              map={map}
-              isPinMode={isPinMode}
-              onPinModeChange={handlePinModeChange}
-            />
-          </div>
-        ) : null}
       </div>
     </div>
   );
