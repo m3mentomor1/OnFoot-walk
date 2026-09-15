@@ -2,7 +2,7 @@
 
 import type { Map as LeafletMap } from "leaflet";
 import L from "leaflet";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   Marker,
@@ -11,6 +11,8 @@ import {
 } from "react-leaflet";
 
 import type { GeocodeResult } from "@/lib/geocode";
+import type { WalkabilityResult } from "@/lib/walkability";
+
 import { AiChat } from "@/components/ai-chat";
 import { LocationSearch } from "@/components/location-search";
 import { DropPinButton } from "@/components/drop-pin-button";
@@ -47,9 +49,158 @@ export default function MapView() {
   const [selectedPlace, setSelectedPlace] =
     useState<SelectedPlace | null>(null);
 
+  const [walkability, setWalkability] =
+    useState<WalkabilityResult | null>(null);
+
+  const [isCalculating, setIsCalculating] =
+    useState(false);
+
   const [isPinMode, setIsPinMode] = useState(false);
   const [isAgentMode, setIsAgentMode] = useState(false);
 
+  /*
+   * Stores completed walkability results.
+   *
+   * The cache survives React re-renders because it is
+   * stored inside a ref rather than being recreated
+   * on every render.
+   */
+  const walkabilityCache = useRef(
+    new Map<string, WalkabilityResult>(),
+  );
+
+  /*
+   * Stores requests that are currently in progress.
+   *
+   * This prevents duplicate requests if the same
+   * location is selected multiple times before the
+   * first request finishes.
+   */
+  const walkabilityRequests = useRef(
+    new Map<string, Promise<WalkabilityResult>>(),
+  );
+
+  /*
+   * Create a stable cache key from coordinates.
+   *
+   * Five decimal places gives approximately meter-level
+   * precision, which is more than sufficient for the
+   * walkability analysis.
+   */
+  function getWalkabilityCacheKey(
+    position: [number, number],
+  ) {
+    return `${position[0].toFixed(5)},${position[1].toFixed(5)}`;
+  }
+
+  /*
+   * Fetch walkability data, using the client-side cache
+   * whenever possible.
+   */
+  async function getWalkability(
+    position: [number, number],
+  ): Promise<WalkabilityResult> {
+    const cacheKey =
+      getWalkabilityCacheKey(position);
+
+    /*
+     * 1. Check completed results first.
+     */
+    const cachedResult =
+      walkabilityCache.current.get(cacheKey);
+
+    if (cachedResult) {
+      console.log(
+        "Walkability cache hit:",
+        cacheKey,
+      );
+
+      return cachedResult;
+    }
+
+    /*
+     * 2. Check whether the same request is already
+     *    being processed.
+     */
+    const existingRequest =
+      walkabilityRequests.current.get(cacheKey);
+
+    if (existingRequest) {
+      console.log(
+        "Walkability request already in progress:",
+        cacheKey,
+      );
+
+      return existingRequest;
+    }
+
+    /*
+     * 3. Make a new request.
+     */
+    console.log(
+      "Fetching walkability:",
+      cacheKey,
+    );
+
+    const request = fetch(
+      `/api/walkability?lat=${encodeURIComponent(
+        position[0],
+      )}&lon=${encodeURIComponent(
+        position[1],
+      )}`,
+    )
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(
+            `Walkability calculation failed: ${response.status}`,
+          );
+        }
+
+        return (await response.json()) as WalkabilityResult;
+      })
+      .then((result) => {
+        /*
+         * 4. Save the successful result.
+         */
+        walkabilityCache.current.set(
+          cacheKey,
+          result,
+        );
+
+        console.log(
+          "Walkability cached:",
+          cacheKey,
+        );
+
+        return result;
+      })
+      .finally(() => {
+        /*
+         * 5. Remove the in-flight request.
+         *
+         * The completed result now lives in the normal
+         * cache, so this request entry is no longer needed.
+         */
+        walkabilityRequests.current.delete(
+          cacheKey,
+        );
+      });
+
+    /*
+     * Store the request immediately so that another
+     * click on the same location can reuse it.
+     */
+    walkabilityRequests.current.set(
+      cacheKey,
+      request,
+    );
+
+    return request;
+  }
+
+  /*
+   * Handle map clicks when Drop Pin mode is active.
+   */
   useEffect(() => {
     if (!map) {
       return;
@@ -67,42 +218,83 @@ export default function MapView() {
         event.latlng.lng,
       ];
 
-      // Show the pin immediately while the address is being resolved.
+      /*
+       * Immediately display the pin while both
+       * reverse geocoding and walkability analysis
+       * are being processed.
+       */
       setSelectedPlace({
         name: "Finding location...",
         position,
       });
 
+      setWalkability(null);
+      setIsCalculating(true);
       setIsPinMode(false);
 
       try {
-        const response = await fetch(
-          `/api/reverse-geocode?lat=${encodeURIComponent(
-            position[0],
-          )}&lon=${encodeURIComponent(position[1])}`,
-        );
+        /*
+         * Run reverse geocoding and walkability
+         * analysis at the same time.
+         *
+         * Walkability itself may come directly from
+         * the cache and therefore avoid a network request.
+         */
+        const [reverseGeocodeResponse, walkabilityResult] =
+          await Promise.all([
+            fetch(
+              `/api/reverse-geocode?lat=${encodeURIComponent(
+                position[0],
+              )}&lon=${encodeURIComponent(
+                position[1],
+              )}`,
+            ),
+            getWalkability(position),
+          ]);
 
-        if (!response.ok) {
+        /*
+         * Reverse geocoding.
+         */
+        if (!reverseGeocodeResponse.ok) {
           throw new Error(
-            "Reverse geocoding failed",
+            `Reverse geocoding failed: ${reverseGeocodeResponse.status}`,
           );
         }
 
-        const data = (await response.json()) as {
-          display_name?: string;
-        };
+        const reverseGeocodeData =
+          (await reverseGeocodeResponse.json()) as {
+            display_name?: string;
+          };
 
         setSelectedPlace({
           name:
-            data.display_name ??
+            reverseGeocodeData.display_name ??
             "Unknown location",
           position,
         });
-      } catch {
+
+        /*
+         * Walkability result.
+         */
+        setWalkability(walkabilityResult);
+      } catch (error) {
+        console.error(
+          "Location analysis failed:",
+          error,
+        );
+
+        /*
+         * We keep the pin even if one of the services
+         * fails.
+         */
         setSelectedPlace({
           name: "Unknown location",
           position,
         });
+
+        setWalkability(null);
+      } finally {
+        setIsCalculating(false);
       }
     }
 
@@ -113,6 +305,10 @@ export default function MapView() {
     };
   }, [map, isPinMode, isAgentMode]);
 
+  /*
+   * Leaflet needs its size recalculated when the AI
+   * sidebar opens/closes.
+   */
   useEffect(() => {
     if (!map) {
       return;
@@ -127,6 +323,9 @@ export default function MapView() {
     };
   }, [map, isAgentMode]);
 
+  /*
+   * Build the marker and popup.
+   */
   const marker = useMemo(() => {
     if (!selectedPlace) {
       return null;
@@ -141,22 +340,168 @@ export default function MapView() {
         icon={markerIcon}
       >
         <Popup>
-          <div className="min-w-[180px]">
-            <p className="text-sm font-medium leading-snug text-neutral-900">
-              {selectedPlace.name}
-            </p>
+          <div className="min-w-[220px]">
+            {isCalculating ? (
+              <div className="mb-3">
+                <p className="text-sm font-medium text-neutral-900">
+                  Analyzing walkability...
+                </p>
 
-            <p className="mt-1 text-[10px] leading-normal text-neutral-500">
-              {latitude.toFixed(6)},{" "}
-              {longitude.toFixed(6)}
-            </p>
+                <p className="mt-1 text-[10px] leading-normal text-neutral-500">
+                  Checking nearby OpenStreetMap
+                  features.
+                </p>
+              </div>
+            ) : walkability ? (
+              <div className="mb-3">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
+                  Walkability Score
+                </p>
+
+                <div className="mt-1 flex items-end gap-1">
+                  <span className="text-2xl font-semibold leading-none text-neutral-900">
+                    {walkability.score}
+                  </span>
+
+                  <span className="mb-0.5 text-xs text-neutral-400">
+                    /100
+                  </span>
+                </div>
+
+                <p className="mt-1 text-xs font-medium text-neutral-700">
+                  {walkability.rating}
+                </p>
+
+                <div className="mt-3 border-t border-neutral-200 pt-2">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+                    Breakdown
+                  </p>
+
+                  <div className="mt-1.5 space-y-1">
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-neutral-500">
+                        Grocery
+                      </span>
+                      <span className="font-medium text-neutral-700">
+                        {walkability.categories.grocery}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-neutral-500">
+                        Transit
+                      </span>
+                      <span className="font-medium text-neutral-700">
+                        {walkability.categories.transit}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-neutral-500">
+                        Food
+                      </span>
+                      <span className="font-medium text-neutral-700">
+                        {walkability.categories.food}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-neutral-500">
+                        Healthcare
+                      </span>
+                      <span className="font-medium text-neutral-700">
+                        {walkability.categories.healthcare}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-neutral-500">
+                        Parks
+                      </span>
+                      <span className="font-medium text-neutral-700">
+                        {walkability.categories.parks}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-neutral-500">
+                        Schools
+                      </span>
+                      <span className="font-medium text-neutral-700">
+                        {walkability.categories.schools}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-neutral-500">
+                        Pedestrian
+                      </span>
+                      <span className="font-medium text-neutral-700">
+                        {walkability.categories.pedestrian}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="border-t border-neutral-200 pt-2">
+              <p className="text-sm font-medium leading-snug text-neutral-900">
+                {selectedPlace.name}
+              </p>
+
+              <p className="mt-1 text-[10px] leading-normal text-neutral-500">
+                {latitude.toFixed(6)},{" "}
+                {longitude.toFixed(6)}
+              </p>
+            </div>
+
+            {walkability &&
+            walkability.nearbyPlaces.length > 0 ? (
+              <div className="mt-3 border-t border-neutral-200 pt-2">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+                  Nearby
+                </p>
+
+                <div className="mt-1.5 max-h-32 space-y-1 overflow-y-auto">
+                  {walkability.nearbyPlaces
+                    .slice(0, 5)
+                    .map((place) => (
+                      <div
+                        key={place.id}
+                        className="flex items-start justify-between gap-2 text-[10px]"
+                      >
+                        <span className="min-w-0 truncate text-neutral-600">
+                          {place.name}
+                        </span>
+
+                        <span className="shrink-0 text-neutral-400">
+                          {Math.round(
+                            place.distance,
+                          )}
+                          m
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </Popup>
       </Marker>
     );
-  }, [selectedPlace]);
+  }, [
+    selectedPlace,
+    walkability,
+    isCalculating,
+  ]);
 
-  function handleSelect(place: GeocodeResult) {
+  /*
+   * Handle a location selected from the search box.
+   */
+  async function handleSelect(
+    place: GeocodeResult,
+  ) {
     const position: [number, number] = [
       Number.parseFloat(place.lat),
       Number.parseFloat(place.lon),
@@ -167,13 +512,34 @@ export default function MapView() {
       position,
     });
 
+    setWalkability(null);
+    setIsCalculating(true);
     setIsPinMode(false);
 
     map?.flyTo(position, PLACE_ZOOM, {
       duration: 1.1,
     });
+
+    try {
+      const walkabilityResult =
+        await getWalkability(position);
+
+      setWalkability(walkabilityResult);
+    } catch (error) {
+      console.error(
+        "Walkability calculation failed:",
+        error,
+      );
+
+      setWalkability(null);
+    } finally {
+      setIsCalculating(false);
+    }
   }
 
+  /*
+   * Handle switching between Map and AI Agent modes.
+   */
   function handleAgentModeChange(
     active: boolean,
   ) {

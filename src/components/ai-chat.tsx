@@ -2,6 +2,7 @@
 
 import { Send, Sparkles } from "lucide-react";
 import { useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -67,7 +68,7 @@ export function AiChat() {
               setMessage(event.target.value)
             }
             placeholder="Ask or give me a task..."
-            className="h-8 rounded-lg border-neutral-200 bg-neutral-50 px-2.5 text-xs shadow-none focus-visible:ring-2"
+            className="h-8 rounded-lg border-neutral-200 bg-neutral-50 px-2.5 text-xs md:text-xs placeholder:text-xs shadow-none focus-visible:ring-2"
           />
 
           <Button
