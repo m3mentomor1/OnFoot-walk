@@ -1,7 +1,17 @@
 "use client";
 
-import { Loader2, MapPin, Search, X } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  Loader2,
+  MapPin,
+  Search,
+  X,
+} from "lucide-react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { GeocodeResult } from "@/lib/geocode";
@@ -11,16 +21,22 @@ type LocationSearchProps = {
   onSelect: (place: GeocodeResult) => void;
 };
 
-export function LocationSearch({ onSelect }: LocationSearchProps) {
+export function LocationSearch({
+  onSelect,
+}: LocationSearchProps) {
   const listId = useId();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef =
+    useRef<HTMLInputElement>(null);
 
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<GeocodeResult[]>([]);
+  const [results, setResults] =
+    useState<GeocodeResult[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [activeIndex, setActiveIndex] = useState(-1);
+  const [error, setError] =
+    useState<string | null>(null);
+  const [activeIndex, setActiveIndex] =
+    useState(-1);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -32,44 +48,53 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
       return;
     }
 
-    const controller = new AbortController();
+    const controller =
+      new AbortController();
 
-    const timeout = window.setTimeout(async () => {
-      setLoading(true);
-      setError(null);
+    const timeout = window.setTimeout(
+      async () => {
+        setLoading(true);
+        setError(null);
 
-      try {
-        const response = await fetch(
-          `/api/geocode?q=${encodeURIComponent(trimmed)}`,
-          {
-            signal: controller.signal,
-          },
-        );
+        try {
+          const response = await fetch(
+            `/api/geocode?q=${encodeURIComponent(
+              trimmed,
+            )}`,
+            {
+              signal: controller.signal,
+            },
+          );
 
-        if (!response.ok) {
-          throw new Error("Search failed");
+          if (!response.ok) {
+            throw new Error("Search failed");
+          }
+
+          const data =
+            (await response.json()) as GeocodeResult[];
+
+          setResults(data);
+          setOpen(true);
+          setActiveIndex(-1);
+        } catch (caught) {
+          if (
+            caught instanceof DOMException &&
+            caught.name === "AbortError"
+          ) {
+            return;
+          }
+
+          setError(
+            "Could not find locations. Try again.",
+          );
+          setResults([]);
+          setOpen(true);
+        } finally {
+          setLoading(false);
         }
-
-        const data = (await response.json()) as GeocodeResult[];
-
-        setResults(data);
-        setOpen(true);
-        setActiveIndex(-1);
-      } catch (caught) {
-        if (
-          caught instanceof DOMException &&
-          caught.name === "AbortError"
-        ) {
-          return;
-        }
-
-        setError("Could not find locations. Try again.");
-        setResults([]);
-        setOpen(true);
-      } finally {
-        setLoading(false);
-      }
-    }, 350);
+      },
+      350,
+    );
 
     return () => {
       controller.abort();
@@ -77,7 +102,9 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
     };
   }, [query]);
 
-  function selectPlace(place: GeocodeResult) {
+  function selectPlace(
+    place: GeocodeResult,
+  ) {
     setQuery(place.display_name);
     setOpen(false);
     setResults([]);
@@ -109,7 +136,10 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
             setOpen(true);
           }}
           onFocus={() => {
-            if (results.length > 0 || error) {
+            if (
+              results.length > 0 ||
+              error
+            ) {
               setOpen(true);
             }
           }}
@@ -118,7 +148,10 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
               event.preventDefault();
 
               setActiveIndex((index) =>
-                Math.min(index + 1, results.length - 1),
+                Math.min(
+                  index + 1,
+                  results.length - 1,
+                ),
               );
             }
 
@@ -174,7 +207,8 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
         ) : null}
       </div>
 
-      {open && (error || results.length > 0) ? (
+      {open &&
+      (error || results.length > 0) ? (
         <ul
           id={listId}
           role="listbox"
@@ -185,27 +219,39 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
               {error}
             </li>
           ) : (
-            results.map((place, index) => (
-              <li
-                key={place.place_id}
-                role="option"
-                aria-selected={index === activeIndex}
-              >
-                <button
-                  type="button"
-                  className={cn(
-                    "flex w-full items-start gap-2 px-3 py-2 text-left text-xs text-neutral-800 transition-colors hover:bg-neutral-50",
-                    index === activeIndex && "bg-neutral-100",
-                  )}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => selectPlace(place)}
+            results.map(
+              (place, index) => (
+                <li
+                  key={place.place_id}
+                  role="option"
+                  aria-selected={
+                    index === activeIndex
+                  }
                 >
-                  <MapPin className="mt-0.5 size-3.5 shrink-0 text-neutral-500" />
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex w-full items-start gap-2 px-3 py-2 text-left text-xs text-neutral-800 transition-colors hover:bg-neutral-50",
+                      index ===
+                        activeIndex &&
+                        "bg-neutral-100",
+                    )}
+                    onMouseDown={(event) =>
+                      event.preventDefault()
+                    }
+                    onClick={() =>
+                      selectPlace(place)
+                    }
+                  >
+                    <MapPin className="mt-0.5 size-3.5 shrink-0 text-neutral-500" />
 
-                  <span>{place.display_name}</span>
-                </button>
-              </li>
-            ))
+                    <span>
+                      {place.display_name}
+                    </span>
+                  </button>
+                </li>
+              ),
+            )
           )}
         </ul>
       ) : null}

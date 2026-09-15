@@ -66,7 +66,7 @@ export function AiChat() {
             onChange={(event) =>
               setMessage(event.target.value)
             }
-            placeholder="Ask the AI agent..."
+            placeholder="Ask or give me a task..."
             className="h-8 rounded-lg border-neutral-200 bg-neutral-50 px-2.5 text-xs shadow-none focus-visible:ring-2"
           />
 

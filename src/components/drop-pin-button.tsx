@@ -22,7 +22,9 @@ export function DropPinButton({
       aria-pressed={isPinMode}
       onClick={() => onChange(!isPinMode)}
       className={`
-        flex h-7 w-7
+        flex
+        h-7
+        w-7
         shrink-0
         items-center
         justify-center

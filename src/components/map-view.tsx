@@ -12,8 +12,8 @@ import {
 
 import type { GeocodeResult } from "@/lib/geocode";
 import { AiChat } from "@/components/ai-chat";
-import { DropPinButton } from "@/components/drop-pin-button";
 import { LocationSearch } from "@/components/location-search";
+import { DropPinButton } from "@/components/drop-pin-button";
 import { ModeSwitch } from "@/components/mode-switch";
 import { ZoomControls } from "@/components/zoom-controls";
 
@@ -43,8 +43,10 @@ type SelectedPlace = {
 
 export default function MapView() {
   const [map, setMap] = useState<LeafletMap | null>(null);
+
   const [selectedPlace, setSelectedPlace] =
     useState<SelectedPlace | null>(null);
+
   const [isPinMode, setIsPinMode] = useState(false);
   const [isAgentMode, setIsAgentMode] = useState(false);
 
@@ -53,7 +55,9 @@ export default function MapView() {
       return;
     }
 
-    function handleMapClick(event: L.LeafletMouseEvent) {
+    async function handleMapClick(
+      event: L.LeafletMouseEvent,
+    ) {
       if (!isPinMode || isAgentMode) {
         return;
       }
@@ -63,12 +67,43 @@ export default function MapView() {
         event.latlng.lng,
       ];
 
+      // Show the pin immediately while the address is being resolved.
       setSelectedPlace({
-        name: "Dropped pin",
+        name: "Finding location...",
         position,
       });
 
       setIsPinMode(false);
+
+      try {
+        const response = await fetch(
+          `/api/reverse-geocode?lat=${encodeURIComponent(
+            position[0],
+          )}&lon=${encodeURIComponent(position[1])}`,
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            "Reverse geocoding failed",
+          );
+        }
+
+        const data = (await response.json()) as {
+          display_name?: string;
+        };
+
+        setSelectedPlace({
+          name:
+            data.display_name ??
+            "Unknown location",
+          position,
+        });
+      } catch {
+        setSelectedPlace({
+          name: "Unknown location",
+          position,
+        });
+      }
     }
 
     map.on("click", handleMapClick);
@@ -97,12 +132,26 @@ export default function MapView() {
       return null;
     }
 
+    const [latitude, longitude] =
+      selectedPlace.position;
+
     return (
       <Marker
         position={selectedPlace.position}
         icon={markerIcon}
       >
-        <Popup>{selectedPlace.name}</Popup>
+        <Popup>
+          <div className="min-w-[180px]">
+            <p className="text-sm font-medium leading-snug text-neutral-900">
+              {selectedPlace.name}
+            </p>
+
+            <p className="mt-1 text-[10px] leading-normal text-neutral-500">
+              {latitude.toFixed(6)},{" "}
+              {longitude.toFixed(6)}
+            </p>
+          </div>
+        </Popup>
       </Marker>
     );
   }, [selectedPlace]);
@@ -125,7 +174,9 @@ export default function MapView() {
     });
   }
 
-  function handleAgentModeChange(active: boolean) {
+  function handleAgentModeChange(
+    active: boolean,
+  ) {
     setIsAgentMode(active);
 
     if (active) {
@@ -160,7 +211,9 @@ export default function MapView() {
         <div className="pointer-events-none absolute inset-0 z-[1000]">
           {!isAgentMode ? (
             <div className="flex justify-center px-4 pt-4">
-              <LocationSearch onSelect={handleSelect} />
+              <LocationSearch
+                onSelect={handleSelect}
+              />
             </div>
           ) : null}
 
@@ -178,13 +231,17 @@ export default function MapView() {
 
                     <ModeSwitch
                       isAgentMode={isAgentMode}
-                      onChange={handleAgentModeChange}
+                      onChange={
+                        handleAgentModeChange
+                      }
                     />
                   </>
                 ) : (
                   <ModeSwitch
                     isAgentMode={isAgentMode}
-                    onChange={handleAgentModeChange}
+                    onChange={
+                      handleAgentModeChange
+                    }
                   />
                 )}
               </div>
