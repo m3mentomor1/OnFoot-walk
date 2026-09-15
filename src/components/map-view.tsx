@@ -12,7 +12,9 @@ import {
 
 import type { GeocodeResult } from "@/lib/geocode";
 import { AiChat } from "@/components/ai-chat";
+import { DropPinButton } from "@/components/drop-pin-button";
 import { LocationSearch } from "@/components/location-search";
+import { ModeSwitch } from "@/components/mode-switch";
 import { ZoomControls } from "@/components/zoom-controls";
 
 import "leaflet/dist/leaflet.css";
@@ -41,12 +43,9 @@ type SelectedPlace = {
 
 export default function MapView() {
   const [map, setMap] = useState<LeafletMap | null>(null);
-
   const [selectedPlace, setSelectedPlace] =
     useState<SelectedPlace | null>(null);
-
   const [isPinMode, setIsPinMode] = useState(false);
-
   const [isAgentMode, setIsAgentMode] = useState(false);
 
   useEffect(() => {
@@ -126,10 +125,6 @@ export default function MapView() {
     });
   }
 
-  function handlePinModeChange(active: boolean) {
-    setIsPinMode(active);
-  }
-
   function handleAgentModeChange(active: boolean) {
     setIsAgentMode(active);
 
@@ -140,10 +135,8 @@ export default function MapView() {
 
   return (
     <div className="flex h-dvh w-full overflow-hidden">
-      {/* AI Agent Panel */}
       {isAgentMode ? <AiChat /> : null}
 
-      {/* Map */}
       <div className="relative h-full min-w-0 flex-1">
         <MapContainer
           center={DEFAULT_CENTER}
@@ -164,25 +157,37 @@ export default function MapView() {
           {marker}
         </MapContainer>
 
-        {/* Map UI */}
         <div className="pointer-events-none absolute inset-0 z-[1000]">
-          {/* Location Search */}
           {!isAgentMode ? (
             <div className="flex justify-center px-4 pt-4">
               <LocationSearch onSelect={handleSelect} />
             </div>
           ) : null}
 
-          {/* Map Controls */}
           {map ? (
             <div className="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2">
-              <ZoomControls
-                map={map}
-                isPinMode={isPinMode}
-                onPinModeChange={handlePinModeChange}
-                isAgentMode={isAgentMode}
-                onAgentModeChange={handleAgentModeChange}
-              />
+              <div className="flex flex-col items-center gap-2">
+                {!isAgentMode ? (
+                  <>
+                    <ZoomControls map={map} />
+
+                    <DropPinButton
+                      isPinMode={isPinMode}
+                      onChange={setIsPinMode}
+                    />
+
+                    <ModeSwitch
+                      isAgentMode={isAgentMode}
+                      onChange={handleAgentModeChange}
+                    />
+                  </>
+                ) : (
+                  <ModeSwitch
+                    isAgentMode={isAgentMode}
+                    onChange={handleAgentModeChange}
+                  />
+                )}
+              </div>
             </div>
           ) : null}
         </div>
