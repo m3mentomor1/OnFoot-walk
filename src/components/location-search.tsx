@@ -181,7 +181,7 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
           className="absolute inset-x-0 top-[calc(100%+0.5rem)] overflow-hidden rounded-xl border border-black/5 bg-white py-1 shadow-lg"
         >
           {error ? (
-            <li className="px-3 py-2.5 text-sm text-neutral-500">
+            <li className="px-3 py-2.5 text-xs text-neutral-500">
               {error}
             </li>
           ) : (
@@ -194,13 +194,13 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
                 <button
                   type="button"
                   className={cn(
-                    "flex w-full items-start gap-2.5 px-3 py-2 text-left text-sm text-neutral-800 transition-colors hover:bg-neutral-50",
+                    "flex w-full items-start gap-2 px-3 py-2 text-left text-xs text-neutral-800 transition-colors hover:bg-neutral-50",
                     index === activeIndex && "bg-neutral-100",
                   )}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => selectPlace(place)}
                 >
-                  <MapPin className="mt-0.5 size-4 shrink-0 text-neutral-500" />
+                  <MapPin className="mt-0.5 size-3.5 shrink-0 text-neutral-500" />
 
                   <span>{place.display_name}</span>
                 </button>
