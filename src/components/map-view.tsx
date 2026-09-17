@@ -2,7 +2,12 @@
 
 import type { Map as LeafletMap } from "leaflet";
 import L from "leaflet";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   MapContainer,
   Marker,
@@ -13,28 +18,42 @@ import {
 import type { GeocodeResult } from "@/lib/geocode";
 import type { WalkabilityResult } from "@/lib/walkability";
 
-import { AiChat } from "@/components/ai-chat";
-import { LocationSearch } from "@/components/location-search";
+import {
+  AiChat,
+  type MapAction,
+} from "@/components/ai-chat";
 import { DropPinButton } from "@/components/drop-pin-button";
+import { LocationSearch } from "@/components/location-search";
 import { ModeSwitch } from "@/components/mode-switch";
 import { ZoomControls } from "@/components/zoom-controls";
 
 import "leaflet/dist/leaflet.css";
 
-const DEFAULT_CENTER: [number, number] = [20, 0];
+const DEFAULT_CENTER: [number, number] = [
+  20,
+  0,
+];
+
 const DEFAULT_ZOOM = 3;
+
 const PLACE_ZOOM = 16;
 
 const markerIcon = L.icon({
   iconUrl:
     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+
   iconRetinaUrl:
     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+
   shadowUrl:
     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+
   iconSize: [25, 41],
+
   iconAnchor: [12, 41],
+
   popupAnchor: [1, -34],
+
   shadowSize: [41, 41],
 });
 
@@ -43,20 +62,61 @@ type SelectedPlace = {
   position: [number, number];
 };
 
+type MapViewState = {
+  center: [number, number];
+  zoom: number;
+};
+
 export default function MapView() {
-  const [map, setMap] = useState<LeafletMap | null>(null);
+  const [map, setMap] =
+    useState<LeafletMap | null>(null);
 
-  const [selectedPlace, setSelectedPlace] =
-    useState<SelectedPlace | null>(null);
+  const [
+    selectedPlace,
+    setSelectedPlace,
+  ] =
+    useState<SelectedPlace | null>(
+      null,
+    );
 
-  const [walkability, setWalkability] =
-    useState<WalkabilityResult | null>(null);
+  const [
+    walkability,
+    setWalkability,
+  ] =
+    useState<WalkabilityResult | null>(
+      null,
+    );
 
-  const [isCalculating, setIsCalculating] =
-    useState(false);
+  const [
+    isCalculating,
+    setIsCalculating,
+  ] = useState(false);
 
-  const [isPinMode, setIsPinMode] = useState(false);
-  const [isAgentMode, setIsAgentMode] = useState(false);
+  const [
+    isPinMode,
+    setIsPinMode,
+  ] = useState(false);
+
+  const [
+    isAgentMode,
+    setIsAgentMode,
+  ] = useState(false);
+
+  /*
+   * Keep the current Leaflet viewport in React state.
+   *
+   * This is important for the AI Agent because it allows
+   * the current map center and zoom level to be included
+   * in the context sent to the agent.
+   */
+  const [
+    mapViewState,
+    setMapViewState,
+  ] =
+    useState<MapViewState>({
+      center: DEFAULT_CENTER,
+      zoom: DEFAULT_ZOOM,
+    });
 
   /*
    * Stores completed walkability results.
@@ -65,9 +125,13 @@ export default function MapView() {
    * stored inside a ref rather than being recreated
    * on every render.
    */
-  const walkabilityCache = useRef(
-    new Map<string, WalkabilityResult>(),
-  );
+  const walkabilityCache =
+    useRef(
+      new Map<
+        string,
+        WalkabilityResult
+      >(),
+    );
 
   /*
    * Stores requests that are currently in progress.
@@ -76,9 +140,13 @@ export default function MapView() {
    * location is selected multiple times before the
    * first request finishes.
    */
-  const walkabilityRequests = useRef(
-    new Map<string, Promise<WalkabilityResult>>(),
-  );
+  const walkabilityRequests =
+    useRef(
+      new Map<
+        string,
+        Promise<WalkabilityResult>
+      >(),
+    );
 
   /*
    * Create a stable cache key from coordinates.
@@ -90,7 +158,9 @@ export default function MapView() {
   function getWalkabilityCacheKey(
     position: [number, number],
   ) {
-    return `${position[0].toFixed(5)},${position[1].toFixed(5)}`;
+    return `${position[0].toFixed(
+      5,
+    )},${position[1].toFixed(5)}`;
   }
 
   /*
@@ -101,13 +171,17 @@ export default function MapView() {
     position: [number, number],
   ): Promise<WalkabilityResult> {
     const cacheKey =
-      getWalkabilityCacheKey(position);
+      getWalkabilityCacheKey(
+        position,
+      );
 
     /*
      * 1. Check completed results first.
      */
     const cachedResult =
-      walkabilityCache.current.get(cacheKey);
+      walkabilityCache.current.get(
+        cacheKey,
+      );
 
     if (cachedResult) {
       console.log(
@@ -123,7 +197,9 @@ export default function MapView() {
      *    being processed.
      */
     const existingRequest =
-      walkabilityRequests.current.get(cacheKey);
+      walkabilityRequests.current.get(
+        cacheKey,
+      );
 
     if (existingRequest) {
       console.log(
@@ -199,6 +275,58 @@ export default function MapView() {
   }
 
   /*
+   * Keep React's map state synchronized with Leaflet.
+   *
+   * The AI Agent uses this information as part of its
+   * current map context.
+   */
+  useEffect(() => {
+    if (!map) {
+      return;
+    }
+
+    function syncMapView() {
+      if (!map) {
+        return;
+      }
+    
+      const center = map.getCenter();
+    
+      setMapViewState({
+        center: [
+          center.lat,
+          center.lng,
+        ],
+        zoom: map.getZoom(),
+      });
+    }
+
+    syncMapView();
+
+    map.on(
+      "moveend",
+      syncMapView,
+    );
+
+    map.on(
+      "zoomend",
+      syncMapView,
+    );
+
+    return () => {
+      map.off(
+        "moveend",
+        syncMapView,
+      );
+
+      map.off(
+        "zoomend",
+        syncMapView,
+      );
+    };
+  }, [map]);
+
+  /*
    * Handle map clicks when Drop Pin mode is active.
    */
   useEffect(() => {
@@ -209,11 +337,17 @@ export default function MapView() {
     async function handleMapClick(
       event: L.LeafletMouseEvent,
     ) {
-      if (!isPinMode || isAgentMode) {
+      if (
+        !isPinMode ||
+        isAgentMode
+      ) {
         return;
       }
 
-      const position: [number, number] = [
+      const position: [
+        number,
+        number,
+      ] = [
         event.latlng.lat,
         event.latlng.lng,
       ];
@@ -229,7 +363,9 @@ export default function MapView() {
       });
 
       setWalkability(null);
+
       setIsCalculating(true);
+
       setIsPinMode(false);
 
       try {
@@ -240,22 +376,29 @@ export default function MapView() {
          * Walkability itself may come directly from
          * the cache and therefore avoid a network request.
          */
-        const [reverseGeocodeResponse, walkabilityResult] =
-          await Promise.all([
-            fetch(
-              `/api/reverse-geocode?lat=${encodeURIComponent(
-                position[0],
-              )}&lon=${encodeURIComponent(
-                position[1],
-              )}`,
-            ),
-            getWalkability(position),
-          ]);
+        const [
+          reverseGeocodeResponse,
+          walkabilityResult,
+        ] = await Promise.all([
+          fetch(
+            `/api/reverse-geocode?lat=${encodeURIComponent(
+              position[0],
+            )}&lon=${encodeURIComponent(
+              position[1],
+            )}`,
+          ),
+
+          getWalkability(
+            position,
+          ),
+        ]);
 
         /*
          * Reverse geocoding.
          */
-        if (!reverseGeocodeResponse.ok) {
+        if (
+          !reverseGeocodeResponse.ok
+        ) {
           throw new Error(
             `Reverse geocoding failed: ${reverseGeocodeResponse.status}`,
           );
@@ -270,13 +413,16 @@ export default function MapView() {
           name:
             reverseGeocodeData.display_name ??
             "Unknown location",
+
           position,
         });
 
         /*
          * Walkability result.
          */
-        setWalkability(walkabilityResult);
+        setWalkability(
+          walkabilityResult,
+        );
       } catch (error) {
         console.error(
           "Location analysis failed:",
@@ -298,12 +444,22 @@ export default function MapView() {
       }
     }
 
-    map.on("click", handleMapClick);
+    map.on(
+      "click",
+      handleMapClick,
+    );
 
     return () => {
-      map.off("click", handleMapClick);
+      map.off(
+        "click",
+        handleMapClick,
+      );
     };
-  }, [map, isPinMode, isAgentMode]);
+  }, [
+    map,
+    isPinMode,
+    isAgentMode,
+  ]);
 
   /*
    * Leaflet needs its size recalculated when the AI
@@ -314,14 +470,20 @@ export default function MapView() {
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      map.invalidateSize();
-    }, 300);
+    const timer =
+      window.setTimeout(() => {
+        map.invalidateSize();
+      }, 300);
 
     return () => {
-      window.clearTimeout(timer);
+      window.clearTimeout(
+        timer,
+      );
     };
-  }, [map, isAgentMode]);
+  }, [
+    map,
+    isAgentMode,
+  ]);
 
   /*
    * Build the marker and popup.
@@ -331,12 +493,16 @@ export default function MapView() {
       return null;
     }
 
-    const [latitude, longitude] =
-      selectedPlace.position;
+    const [
+      latitude,
+      longitude,
+    ] = selectedPlace.position;
 
     return (
       <Marker
-        position={selectedPlace.position}
+        position={
+          selectedPlace.position
+        }
         icon={markerIcon}
       >
         <Popup>
@@ -344,11 +510,13 @@ export default function MapView() {
             {isCalculating ? (
               <div className="mb-3">
                 <p className="text-sm font-medium text-neutral-900">
-                  Analyzing walkability...
+                  Analyzing
+                  walkability...
                 </p>
 
                 <p className="mt-1 text-[10px] leading-normal text-neutral-500">
-                  Checking nearby OpenStreetMap
+                  Checking nearby
+                  OpenStreetMap
                   features.
                 </p>
               </div>
@@ -360,7 +528,9 @@ export default function MapView() {
 
                 <div className="mt-1 flex items-end gap-1">
                   <span className="text-2xl font-semibold leading-none text-neutral-900">
-                    {walkability.score}
+                    {
+                      walkability.score
+                    }
                   </span>
 
                   <span className="mb-0.5 text-xs text-neutral-400">
@@ -369,7 +539,9 @@ export default function MapView() {
                 </div>
 
                 <p className="mt-1 text-xs font-medium text-neutral-700">
-                  {walkability.rating}
+                  {
+                    walkability.rating
+                  }
                 </p>
 
                 <div className="mt-3 border-t border-neutral-200 pt-2">
@@ -382,8 +554,13 @@ export default function MapView() {
                       <span className="text-neutral-500">
                         Grocery
                       </span>
+
                       <span className="font-medium text-neutral-700">
-                        {walkability.categories.grocery}
+                        {
+                          walkability
+                            .categories
+                            .grocery
+                        }
                       </span>
                     </div>
 
@@ -391,8 +568,13 @@ export default function MapView() {
                       <span className="text-neutral-500">
                         Transit
                       </span>
+
                       <span className="font-medium text-neutral-700">
-                        {walkability.categories.transit}
+                        {
+                          walkability
+                            .categories
+                            .transit
+                        }
                       </span>
                     </div>
 
@@ -400,8 +582,13 @@ export default function MapView() {
                       <span className="text-neutral-500">
                         Food
                       </span>
+
                       <span className="font-medium text-neutral-700">
-                        {walkability.categories.food}
+                        {
+                          walkability
+                            .categories
+                            .food
+                        }
                       </span>
                     </div>
 
@@ -409,8 +596,13 @@ export default function MapView() {
                       <span className="text-neutral-500">
                         Healthcare
                       </span>
+
                       <span className="font-medium text-neutral-700">
-                        {walkability.categories.healthcare}
+                        {
+                          walkability
+                            .categories
+                            .healthcare
+                        }
                       </span>
                     </div>
 
@@ -418,8 +610,13 @@ export default function MapView() {
                       <span className="text-neutral-500">
                         Parks
                       </span>
+
                       <span className="font-medium text-neutral-700">
-                        {walkability.categories.parks}
+                        {
+                          walkability
+                            .categories
+                            .parks
+                        }
                       </span>
                     </div>
 
@@ -427,8 +624,13 @@ export default function MapView() {
                       <span className="text-neutral-500">
                         Schools
                       </span>
+
                       <span className="font-medium text-neutral-700">
-                        {walkability.categories.schools}
+                        {
+                          walkability
+                            .categories
+                            .schools
+                        }
                       </span>
                     </div>
 
@@ -436,8 +638,13 @@ export default function MapView() {
                       <span className="text-neutral-500">
                         Pedestrian
                       </span>
+
                       <span className="font-medium text-neutral-700">
-                        {walkability.categories.pedestrian}
+                        {
+                          walkability
+                            .categories
+                            .pedestrian
+                        }
                       </span>
                     </div>
                   </div>
@@ -447,17 +654,26 @@ export default function MapView() {
 
             <div className="border-t border-neutral-200 pt-2">
               <p className="text-sm font-medium leading-snug text-neutral-900">
-                {selectedPlace.name}
+                {
+                  selectedPlace.name
+                }
               </p>
 
               <p className="mt-1 text-[10px] leading-normal text-neutral-500">
-                {latitude.toFixed(6)},{" "}
-                {longitude.toFixed(6)}
+                {latitude.toFixed(
+                  6,
+                )}
+                ,{" "}
+                {longitude.toFixed(
+                  6,
+                )}
               </p>
             </div>
 
             {walkability &&
-            walkability.nearbyPlaces.length > 0 ? (
+            walkability
+              .nearbyPlaces
+              .length > 0 ? (
               <div className="mt-3 border-t border-neutral-200 pt-2">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">
                   Nearby
@@ -466,23 +682,31 @@ export default function MapView() {
                 <div className="mt-1.5 max-h-32 space-y-1 overflow-y-auto">
                   {walkability.nearbyPlaces
                     .slice(0, 5)
-                    .map((place) => (
-                      <div
-                        key={place.id}
-                        className="flex items-start justify-between gap-2 text-[10px]"
-                      >
-                        <span className="min-w-0 truncate text-neutral-600">
-                          {place.name}
-                        </span>
+                    .map(
+                      (
+                        place,
+                      ) => (
+                        <div
+                          key={
+                            place.id
+                          }
+                          className="flex items-start justify-between gap-2 text-[10px]"
+                        >
+                          <span className="min-w-0 truncate text-neutral-600">
+                            {
+                              place.name
+                            }
+                          </span>
 
-                        <span className="shrink-0 text-neutral-400">
-                          {Math.round(
-                            place.distance,
-                          )}
-                          m
-                        </span>
-                      </div>
-                    ))}
+                          <span className="shrink-0 text-neutral-400">
+                            {Math.round(
+                              place.distance,
+                            )}
+                            m
+                          </span>
+                        </div>
+                      ),
+                    )}
                 </div>
               </div>
             ) : null}
@@ -502,9 +726,16 @@ export default function MapView() {
   async function handleSelect(
     place: GeocodeResult,
   ) {
-    const position: [number, number] = [
-      Number.parseFloat(place.lat),
-      Number.parseFloat(place.lon),
+    const position: [
+      number,
+      number,
+    ] = [
+      Number.parseFloat(
+        place.lat,
+      ),
+      Number.parseFloat(
+        place.lon,
+      ),
     ];
 
     setSelectedPlace({
@@ -513,18 +744,28 @@ export default function MapView() {
     });
 
     setWalkability(null);
+
     setIsCalculating(true);
+
     setIsPinMode(false);
 
-    map?.flyTo(position, PLACE_ZOOM, {
-      duration: 1.1,
-    });
+    map?.flyTo(
+      position,
+      PLACE_ZOOM,
+      {
+        duration: 1.1,
+      },
+    );
 
     try {
       const walkabilityResult =
-        await getWalkability(position);
+        await getWalkability(
+          position,
+        );
 
-      setWalkability(walkabilityResult);
+      setWalkability(
+        walkabilityResult,
+      );
     } catch (error) {
       console.error(
         "Walkability calculation failed:",
@@ -534,6 +775,137 @@ export default function MapView() {
       setWalkability(null);
     } finally {
       setIsCalculating(false);
+    }
+  }
+
+  /*
+   * Execute actions requested by the AI Agent.
+   *
+   * The AI does not directly manipulate Leaflet.
+   * It requests a structured map action, and this
+   * component executes that action against the map.
+   */
+  async function handleAiMapAction(
+    action: MapAction,
+  ) {
+    if (!map) {
+      return;
+    }
+
+    switch (action.type) {
+      /*
+       * Zoom the current map.
+       */
+      case "zoom": {
+        const currentZoom =
+          map.getZoom();
+
+        const amount =
+          Math.min(
+            Math.max(
+              action.amount ?? 1,
+              1,
+            ),
+            5,
+          );
+
+        const nextZoom =
+          action.direction ===
+          "in"
+            ? currentZoom +
+              amount
+            : currentZoom -
+              amount;
+
+        map.setZoom(
+          nextZoom,
+        );
+
+        break;
+      }
+
+      /*
+       * Pan the map to coordinates.
+       */
+      case "pan": {
+        map.flyTo(
+          [
+            action.latitude,
+            action.longitude,
+          ],
+          map.getZoom(),
+          {
+            duration: 0.8,
+          },
+        );
+
+        break;
+      }
+
+      /*
+       * Search result selected by the AI.
+       *
+       * This behaves similarly to the normal search box:
+       * - move the map
+       * - create the selected marker
+       * - calculate walkability
+       * - use the existing cache
+       */
+      case "location": {
+        const position: [
+          number,
+          number,
+        ] = [
+          action.latitude,
+          action.longitude,
+        ];
+
+        setSelectedPlace({
+          name:
+            action.label ??
+            "Selected location",
+
+          position,
+        });
+
+        setWalkability(null);
+
+        setIsCalculating(true);
+
+        setIsPinMode(false);
+
+        map.flyTo(
+          position,
+          PLACE_ZOOM,
+          {
+            duration: 1.1,
+          },
+        );
+
+        try {
+          const walkabilityResult =
+            await getWalkability(
+              position,
+            );
+
+          setWalkability(
+            walkabilityResult,
+          );
+        } catch (error) {
+          console.error(
+            "AI location walkability calculation failed:",
+            error,
+          );
+
+          setWalkability(null);
+        } finally {
+          setIsCalculating(
+            false,
+          );
+        }
+
+        break;
+      }
     }
   }
 
@@ -550,9 +922,114 @@ export default function MapView() {
     }
   }
 
+  /*
+   * Build the complete context available to the AI Agent.
+   *
+   * This contains the information currently represented
+   * by the map UI.
+   */
+  const mapContext = {
+    center: {
+      lat: mapViewState.center[0],
+      lon: mapViewState.center[1],
+    },
+
+    zoom: mapViewState.zoom,
+
+    selectedLocation:
+      selectedPlace
+        ? {
+            name: selectedPlace.name,
+            lat: selectedPlace.position[0],
+            lon: selectedPlace.position[1],
+          }
+        : undefined,
+
+    droppedPin:
+      selectedPlace
+        ? {
+            lat: selectedPlace.position[0],
+            lon: selectedPlace.position[1],
+            address:
+              selectedPlace.name,
+          }
+        : undefined,
+
+    walkability:
+      walkability
+        ? {
+            score:
+              walkability.score,
+
+            rating:
+              walkability.rating,
+
+            categories: {
+              grocery:
+                walkability
+                  .categories
+                  .grocery,
+
+              transit:
+                walkability
+                  .categories
+                  .transit,
+
+              food:
+                walkability
+                  .categories
+                  .food,
+
+              healthcare:
+                walkability
+                  .categories
+                  .healthcare,
+
+              parks:
+                walkability
+                  .categories
+                  .parks,
+
+              schools:
+                walkability
+                  .categories
+                  .schools,
+
+              pedestrian:
+                walkability
+                  .categories
+                  .pedestrian,
+            },
+
+            nearbyPlaces:
+              walkability.nearbyPlaces.map(
+                (place) => ({
+                  id: place.id,
+                  name: place.name,
+                  category:
+                    place.category,
+                  lat: place.lat,
+                  lon: place.lon,
+                  distance:
+                    place.distance,
+                }),
+              ),
+          }
+        : undefined,
+  };
+
   return (
     <div className="flex h-dvh w-full overflow-hidden">
-      {isAgentMode ? <AiChat /> : null}
+      {isAgentMode ? (
+        <AiChat
+          mapContext={
+            mapContext
+          }
+          onMapAction={
+            handleAiMapAction
+          }
+        />
+      ) : null}
 
       <div className="relative h-full min-w-0 flex-1">
         <MapContainer
@@ -578,7 +1055,9 @@ export default function MapView() {
           {!isAgentMode ? (
             <div className="flex justify-center px-4 pt-4">
               <LocationSearch
-                onSelect={handleSelect}
+                onSelect={
+                  handleSelect
+                }
               />
             </div>
           ) : null}
@@ -588,15 +1067,23 @@ export default function MapView() {
               <div className="flex flex-col items-center gap-2">
                 {!isAgentMode ? (
                   <>
-                    <ZoomControls map={map} />
+                    <ZoomControls
+                      map={map}
+                    />
 
                     <DropPinButton
-                      isPinMode={isPinMode}
-                      onChange={setIsPinMode}
+                      isPinMode={
+                        isPinMode
+                      }
+                      onChange={
+                        setIsPinMode
+                      }
                     />
 
                     <ModeSwitch
-                      isAgentMode={isAgentMode}
+                      isAgentMode={
+                        isAgentMode
+                      }
                       onChange={
                         handleAgentModeChange
                       }
@@ -604,7 +1091,9 @@ export default function MapView() {
                   </>
                 ) : (
                   <ModeSwitch
-                    isAgentMode={isAgentMode}
+                    isAgentMode={
+                      isAgentMode
+                    }
                     onChange={
                       handleAgentModeChange
                     }
