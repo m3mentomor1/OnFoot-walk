@@ -11,7 +11,6 @@ Users can search for locations, drop pins, analyze walkability, and interact wit
 The AI agent can also interact with the map through natural language, allowing users to perform map-related tasks such as searching for locations, changing the map view, and exploring geographic information conversationally.
 
 The goal is to make walkability analysis more **interactive, conversational, and accessible** by allowing users to explore geographic information through both the map and an AI-powered interface.
-
 <br><br>
 ##
 
@@ -20,25 +19,25 @@ The goal is to make walkability analysis more **interactive, conversational, and
 - 🗺️ **Interactive Map** — Explore locations through an interactive Leaflet map.
 - 📍 **Location Search** — Search for places using Nominatim and quickly navigate to them.
 - 📌 **Drop Pin** — Manually select any location on the map for exploration.
-- 🤖 **AI Agent** — Ask questions about locations, walkability, routes, nearby amenities, and geographic information through a conversational interface.
-- 🧭 **Agentic Map Control** — Use natural language to perform map-related actions such as searching for locations and changing the map view.
+- 🤖 **AI Agent** — Ask questions & perform supported map-related actions through natural language.
 - 🚶 **Walkability Analysis** — Evaluate an area's walkability using nearby amenities and pedestrian infrastructure sourced from OpenStreetMap.
 - 🏪 **Nearby Amenities** — Analyze nearby groceries, transit stops, food establishments, healthcare facilities, parks, schools, and pedestrian infrastructure.
 - 📊 **Walkability Scoring** — Calculate a 0–100 walkability score using proximity, amenity density, category diversity, and pedestrian infrastructure.
-- 💬 **Conversational Map Exploration** — Use natural language to interact with and explore geographic information.
 - 🔑 **Bring Your Own API Key** — Connect supported LLM providers using your own model API credits.
-- 🧠 **OpenRouter Models** — Use supported Gemma models through OpenRouter for AI agent interactions.
+<br><br>
+##
 
 ### 💻 III. Tech Stack
 
-- **Front-end:** `TypeScript` `Next.js` `Tailwind CSS` `shadcn/ui`
+- **Front-end:** `TypeScript` `Next.js` `Tailwind CSS` `shadcn/ui` `Lucide`
 - **Mapping:** `Leaflet` `React Leaflet`
-- **AI Agent:** `LangGraph` `LangChain`
-- **AI Provider:** `OpenRouter`
-- **LLMs:** `Google Gemma 4 26B A4B` `Google Gemma 4 31B`
+- **AI Agent:** `LangGraph.js` `LangChain.js`
+- **LLM Provider:** `OpenAI` `Claude` `OpenRouter`
+- **LLMs:** `Gemma 4 26B A4B` `Gemma 4 31B`
 - **Geospatial Data:** `OpenStreetMap` `Overpass API`
 - **Geocoding:** `Nominatim`
-- **Icons:** `Lucide`
+<br><br>
+##
 
 ### 🧩 IV. AI Agent
 
@@ -59,6 +58,9 @@ Currently supported OpenRouter models:
 
 - `google/gemma-4-26b-a4b-it:free`
 - `google/gemma-4-31b-it:free`
+
+<br><br>
+##
 
 ### 🌍 V. Geospatial & Walkability Analysis
 
