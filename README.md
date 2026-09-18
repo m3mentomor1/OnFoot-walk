@@ -26,7 +26,7 @@ The goal is to make walkability analysis more **interactive, conversational, and
 - 🏪 **Nearby Amenities** — Analyze nearby groceries, transit stops, food establishments, healthcare facilities, parks, schools, and pedestrian infrastructure.
 - 📊 **Walkability Scoring** — Calculate a 0–100 walkability score using proximity, amenity density, category diversity, and pedestrian infrastructure.
 - 💬 **Conversational Map Exploration** — Use natural language to interact with and explore geographic information.
-- 🔑 **Bring Your Own API Key** — Connect supported AI providers using your own model API credits.
+- 🔑 **Bring Your Own API Key** — Connect supported LLM providers using your own model API credits.
 - 🧠 **OpenRouter Models** — Use supported Gemma models through OpenRouter for AI agent interactions.
 
 ### 💻 III. Tech Stack
@@ -35,7 +35,7 @@ The goal is to make walkability analysis more **interactive, conversational, and
 - **Mapping:** `Leaflet` `React Leaflet`
 - **AI Agent:** `LangGraph` `LangChain`
 - **AI Provider:** `OpenRouter`
-- **AI Models:** `Google Gemma 4 26B A4B` `Google Gemma 4 31B`
+- **LLMs:** `Google Gemma 4 26B A4B` `Google Gemma 4 31B`
 - **Geospatial Data:** `OpenStreetMap` `Overpass API`
 - **Geocoding:** `Nominatim`
 - **Icons:** `Lucide`
